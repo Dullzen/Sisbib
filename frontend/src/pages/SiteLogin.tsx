@@ -46,11 +46,6 @@ export default function SiteLogin() {
           Password
           <input type="password" placeholder="Value" value={password} onChange={e => setPassword(e.target.value)} required />
         </label>
-        <div className="roles">
-          <label><input type="radio" name="role" value="admin" checked={role==='admin'} onChange={()=>setRole('admin')} /> Admin</label>
-          <label><input type="radio" name="role" value="bibliotecario" checked={role==='bibliotecario'} onChange={()=>setRole('bibliotecario')} /> Bibliotecario</label>
-          <label><input type="radio" name="role" value="cliente" checked={role==='cliente'} onChange={()=>setRole('cliente')} /> Cliente</label>
-        </div>
         {error && <div className="error" role="alert" style={{color: 'crimson', marginBottom: 8}}>{error}</div>}
         <button className="btn primary" type="submit" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button>
         <a className="muted" href="#">¿Olvidaste tu contraseña?</a>
