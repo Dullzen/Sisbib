@@ -17,8 +17,6 @@ Proyecto de sistema bibliotecario | LPWWW | Alergicos a la pala
 
 ## Frontend (React + Vite)
 
-Se agregó un prototipo de frontend en `frontend/` con las siguientes vistas:
-
 - Landing de Biblioteca con navbar y selector de roles (solo Admin activo).
 - Login de Admin (mock, sin backend) y redirección a Dashboard.
 - Dashboard con 4 opciones: Usuarios, Registro de ficha, Préstamos domicilio, Préstamos sala (todas con páginas placeholder).
