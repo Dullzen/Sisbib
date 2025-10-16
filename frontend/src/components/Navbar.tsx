@@ -6,15 +6,10 @@ export default function Navbar() {
 
   return (
     <header className="navbar">
-      <div className="navbar__brand">Beco Admin</div>
+      <div className="navbar__brand">Bec</div>
       <nav className="navbar__links">
         <Link to="/" className={!isAdminFlow ? 'active' : ''}>Inicio</Link>
-        <div className="navbar__roles">
-          <span>Roles:</span>
-          <Link to="/admin/login" className={pathname.includes('/admin') ? 'active' : ''}>Admin</Link>
-          <button className="link" disabled title="Próximamente">Bibliotecario</button>
-          <button className="link" disabled title="Próximamente">Cliente</button>
-        </div>
+    <Link to="/login" className={pathname === '/login' ? 'active' : ''}>Ingresar</Link>
       </nav>
     </header>
   )

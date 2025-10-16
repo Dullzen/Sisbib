@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Landing from './pages/Landing'
-import AdminLogin from './pages/admin/AdminLogin'
+import SiteLogin from './SiteLogin'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import Usuarios from './pages/admin/adminTools/Usuarios'
 import RegistroFicha from './pages/admin/adminTools/RegistroFicha'
@@ -14,7 +14,7 @@ return (
         <Navbar />
         <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/login" element={<SiteLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
             {/* placeholders */}
