@@ -1,0 +1,4 @@
+Flask==3.0.3
+Flask-Cors==4.0.1
+psycopg[binary,pool]==3.2.3
+python-dotenv==1.0.1
