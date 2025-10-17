@@ -180,6 +180,45 @@ def create_app():
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)}), 500
 
+    @app.post("/api/users")
+    def create_user():
+        data: Dict[str, Any] = request.get_json(silent=True) or {}
+        
+        # Basic validation
+        required_fields = ["nombre", "apellido1", "apellido2", "rut_numero", "rut_dv", "email", "password", "role"]
+        if not all(field in data for field in required_fields):
+            return jsonify({"ok": False, "error": "Faltan campos requeridos"}), 400
+
+        try:
+            with get_connection() as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO public.users (nombre, apellido1, apellido2, rut_numero, rut_dv, email, password, role)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING user_id, email, created_at
+                        """,
+                        (
+                            data["nombre"],
+                            data["apellido1"],
+                            data["apellido2"],
+                            data["rut_numero"],
+                            data["rut_dv"].upper(),
+                            data["email"],
+                            data["password"], # In a real app, hash this password!
+                            data["role"],
+                        )
+                    )
+                    new_user = cur.fetchone()
+                    conn.commit()
+                    
+                    return jsonify({"ok": True, "user": new_user})
+
+        except psycopg.errors.UniqueViolation:
+            return jsonify({"ok": False, "error": "El email o RUT ya está registrado."}), 409
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
     return app
 
 
