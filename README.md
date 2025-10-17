@@ -42,12 +42,6 @@ Requisitos: Node.js 18+ y npm.
 
 	Abre http://localhost:5173
 
-3. Build de producción (opcional)
-
-	```powershell
-	npm run build
-	npm run preview
-	```
 
 ### Estructura principal
 
