@@ -35,3 +35,13 @@ input{padding:10px;border:1px solid #e5e7eb;border-radius:6px}
 .tile:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(0,0,0,.12)}
 .tile__icon{font-size:64px}
 .tile__title{font-size:1.1rem;text-align:center}
+
+/* Tables and filters */
+.filterbar{display:flex;gap:10px;margin:12px 0}
+.filterbar input{flex:1}
+.tablewrap{background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:auto}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px 12px;border-bottom:1px solid #eee;font-size:.95rem}
+.table thead th{position:sticky;top:0;background:#fafafa;text-align:left}
+.table tbody tr:hover{background:#fafcff}
+.error{color:#b91c1c}

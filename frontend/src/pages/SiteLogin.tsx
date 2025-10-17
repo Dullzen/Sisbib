@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth, Role, AuthState } from '../auth'
 
 export default function SiteLogin() {
   const [email, setEmail] = useState('')
@@ -8,6 +9,7 @@ export default function SiteLogin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -23,10 +25,14 @@ export default function SiteLogin() {
       if (!res.ok || !data.ok) {
         throw new Error(data?.error || 'Error de autenticación')
       }
-      const finalRole = (data.role || role) as string
-      if (finalRole === 'admin') navigate('/admin/dashboard')
-      else if (finalRole === 'bibliotecario') navigate('/bibliotecario/home')
-      else navigate('/cliente/home')
+      const finalRole = (data.role || role) as Role
+      const nextAuth: AuthState = {
+        role: finalRole,
+        user: data.user
+      }
+  login(nextAuth)
+  const dest = finalRole === 'admin' ? '/admin/dashboard' : finalRole === 'bibliotecario' ? '/bibliotecario/home' : '/cliente/home'
+  navigate(dest, { replace: true })
     } catch (err: any) {
       setError(err?.message || 'No se pudo iniciar sesión')
     } finally {

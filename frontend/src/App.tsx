@@ -9,6 +9,7 @@ import PrestamosSala from './pages/admin/adminTools/PrestamosSala'
 import Navbar from './components/Navbar'
 import BibliotecarioHome from './pages/bibliotecario/Home'
 import ClienteHome from './pages/cliente/Home'
+import Protected from './Protected'
 
 export default function App() {
 return (
@@ -17,15 +18,15 @@ return (
         <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<SiteLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/bibliotecario/home" element={<BibliotecarioHome />} />
-            <Route path="/cliente/home" element={<ClienteHome />} />
+            <Route path="/admin/dashboard" element={<Protected role="admin"><AdminDashboard /></Protected>} />
+            <Route path="/bibliotecario/home" element={<Protected role="bibliotecario"><BibliotecarioHome /></Protected>} />
+            <Route path="/cliente/home" element={<Protected role="cliente"><ClienteHome /></Protected>} />
 
             {/* placeholders */}
-            <Route path="/admin/usuarios" element={<Usuarios />} />
-            <Route path="/admin/registro-ficha" element={<RegistroFicha />} />
-            <Route path="/admin/prestamos-domicilio" element={<PrestamosDomicilio />} />
-            <Route path="/admin/prestamos-sala" element={<PrestamosSala />} />
+            <Route path="/admin/usuarios" element={<Protected role="admin"><Usuarios /></Protected>} />
+            <Route path="/admin/registro-ficha" element={<Protected role="admin"><RegistroFicha /></Protected>} />
+            <Route path="/admin/prestamos-domicilio" element={<Protected role="admin"><PrestamosDomicilio /></Protected>} />
+            <Route path="/admin/prestamos-sala" element={<Protected role="admin"><PrestamosSala /></Protected>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
