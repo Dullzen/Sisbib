@@ -4,8 +4,8 @@ Proyecto de sistema bibliotecario | LPWWW | Alergicos a la pala
 # Integrantes:
 * Tomás González 202273609-7
 * Cristóbal Lazcano 202173567-4
-* Integrante 3
-* Integrante 4
+* José Manuel Castro 202073550-6
+* Ian Rossi A. 202004612-3
 * Integrante 5
 
 ### Entrega 1: Frontend
