@@ -5,8 +5,12 @@ import { useAuth, Role } from './auth'
 type Allowed = Role | Role[]
 
 export default function Protected({ children, role }: { children: React.ReactNode; role?: Allowed }) {
-  const { auth, roleHome } = useAuth()
+  const { auth, loading, roleHome } = useAuth()
   const location = useLocation()
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
 
   if (!auth) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />

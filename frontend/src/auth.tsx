@@ -17,6 +17,7 @@ export interface AuthState {
 
 interface AuthContextValue {
   auth: AuthState | null
+  loading: boolean
   login: (next: AuthState) => void
   logout: () => void
   roleHome: string
@@ -29,6 +30,7 @@ const STORAGE_KEY = 'sisbib.auth'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState | null>(null)
+  const [loading, setLoading] = useState(true)
 
   // hydrate from storage once
   useEffect(() => {
@@ -36,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) setAuth(JSON.parse(raw))
     } catch {}
+    setLoading(false)
   }, [])
 
   // persist
@@ -64,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return auth.user.email
   }, [auth])
 
-  const value = useMemo(() => ({ auth, login, logout, roleHome, displayName }), [auth, roleHome, displayName])
+  const value = useMemo(() => ({ auth, loading, login, logout, roleHome, displayName }), [auth, loading, roleHome, displayName])
 
   return (
     <AuthContext.Provider value={value}>

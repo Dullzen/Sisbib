@@ -13,13 +13,9 @@ export default function AdminDashboard() {
           <div className="tile__icon" aria-hidden>🗂️</div>
           <div className="tile__title">Registro de ficha</div>
         </Link>
-        <Link to="/admin/prestamos-domicilio" className="tile">
-          <div className="tile__icon" aria-hidden>🏠</div>
-          <div className="tile__title">Prestamos domicilio</div>
-        </Link>
-        <Link to="/admin/prestamos-sala" className="tile">
+        <Link to="/admin/prestamos" className="tile">
           <div className="tile__icon" aria-hidden>🏢</div>
-          <div className="tile__title">Prestamos sala</div>
+          <div className="tile__title">Prestamos</div>
         </Link>
       </div>
     </main>

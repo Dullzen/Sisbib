@@ -4,8 +4,7 @@ import SiteLogin from './pages/SiteLogin'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import Usuarios from './pages/admin/adminTools/Usuarios'
 import RegistroFicha from './pages/admin/adminTools/RegistroFicha'
-import PrestamosDomicilio from './pages/admin/adminTools/PrestamosDomicilio'
-import PrestamosSala from './pages/admin/adminTools/PrestamosSala'
+import Prestamos from './pages/admin/adminTools/Prestamos'
 import Navbar from './components/Navbar'
 import BibliotecarioHome from './pages/bibliotecario/Home'
 import ClienteHome from './pages/cliente/Home'
@@ -25,8 +24,7 @@ return (
             {/* placeholders */}
             <Route path="/admin/usuarios" element={<Protected role="admin"><Usuarios /></Protected>} />
             <Route path="/admin/registro-ficha" element={<Protected role="admin"><RegistroFicha /></Protected>} />
-            <Route path="/admin/prestamos-domicilio" element={<Protected role="admin"><PrestamosDomicilio /></Protected>} />
-            <Route path="/admin/prestamos-sala" element={<Protected role="admin"><PrestamosSala /></Protected>} />
+            <Route path="/admin/prestamos" element={<Protected role="admin"><Prestamos /></Protected>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

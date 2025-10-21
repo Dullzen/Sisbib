@@ -1,12 +1,15 @@
 import os
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
+from datetime import datetime
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import psycopg
 from psycopg.rows import dict_row
 from dotenv import load_dotenv
+from flask_mailman import Mail, EmailMessage
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 @dataclass
@@ -39,10 +42,103 @@ def get_connection():
     )
 
 
+load_dotenv()
+
+mail = Mail()
+
+def send_overdue_notifications():
+    """Send email notifications for overdue loans."""
+    
+    print("Ejecutando tarea de notificación de préstamos vencidos...")
+    
+    try:
+        with get_connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                # Seleccionar préstamos que están marcados como vencidos
+                cur.execute(
+                    """
+                    SELECT p.prestamo_id, u.email, u.nombre, l.titulo
+                    FROM public.prestamos p
+                    JOIN public.users u ON p.user_fk = u.user_id
+                    JOIN public.libros l ON p.libro_fk = l.id_libro
+                    WHERE p.vencido = TRUE
+                    """
+                )
+                overdue_loans = cur.fetchall()
+                print(f"Se encontraron {len(overdue_loans)} préstamos vencidos para notificar.")
+
+                if not overdue_loans:
+                    return
+
+                # Enviar correos
+                for loan in overdue_loans:
+                    subject = "Aviso de Préstamo Vencido"
+                    body = f"""
+Hola {loan['nombre']},
+
+Te informamos que tu préstamo del libro "{loan['titulo']}" ha vencido.
+Por favor, acércate a la biblioteca para regularizar tu situación.
+
+Saludos,
+Sistema de Biblioteca
+"""
+                    try:
+                        msg = EmailMessage(subject, body, to=[loan['email']])
+                        # Con Flask-Mailman, es más robusto usar msg.send()
+                        msg.send()
+                        print(f"Email enviado a {loan['email']} por préstamo {loan['prestamo_id']}.")
+                    except Exception as e:
+                        print(f"Error al enviar email a {loan['email']}: {e}")
+
+                # Marcar los préstamos como notificados (actualizar 'vencido' a TRUE)
+                overdue_ids = [loan['prestamo_id'] for loan in overdue_loans]
+                cur.execute("UPDATE public.prestamos SET vencido = TRUE WHERE prestamo_id = ANY(%s)", (overdue_ids,))
+                conn.commit()
+                print(f"Se marcaron {len(overdue_ids)} préstamos como vencidos.")
+
+    except Exception as e:
+        print(f"Error en la tarea de notificación: {e}")
+
+
 def create_app():
-    load_dotenv()
     app = Flask(__name__)
     CORS(app)  # Allow all origins for dev; tighten in prod
+
+    # Mail configuration
+    app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+    app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+    app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+    app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
+    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+    
+    # Initialize mail
+    mail.init_app(app)
+
+    @app.post("/api/notify-overdue")
+    def notify_overdue_manual():
+        try:
+            with app.app_context():
+                send_overdue_notifications()
+            return jsonify({"ok": True, "message": "Proceso de notificación iniciado."})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    @app.post("/api/test-email")
+    def test_email():
+        data = request.get_json(silent=True) or {}
+        to = data.get("to") or os.getenv("MAIL_TEST_TO")
+        if not to:
+            return jsonify({"ok": False, "error": "Debe proporcionar 'to' en el body o MAIL_TEST_TO en .env"}), 400
+        subject = data.get("subject", "Prueba de correo - Sisbib")
+        body = data.get("body", "Este es un correo de prueba desde Sisbib usando Mailtrap.")
+        try:
+            msg = EmailMessage(subject, body, to=[to])
+            msg.send()
+            return jsonify({"ok": True, "message": f"Correo de prueba enviado a {to}"})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
     @app.get("/api/health")
     def health():
@@ -151,8 +247,10 @@ def create_app():
         where = []
         params: list[Any] = []
         if tipo:
-            where.append("p.tipo_prestamo = %s")
-            params.append(tipo)
+            tipos_list = [t.strip() for t in tipo.split(',') if t.strip()]
+            if tipos_list:
+                where.append("p.tipo_prestamo = ANY(%s)")
+                params.append(tipos_list)
         if q:
             like = f"%{q.strip()}%"
             where.append("(l.titulo ILIKE %s OR l.autor ILIKE %s OR u.email ILIKE %s OR u.nombre ILIKE %s OR u.apellido1 ILIKE %s OR u.apellido2 ILIKE %s OR CAST(p.prestamo_id AS TEXT) ILIKE %s)")
@@ -223,6 +321,18 @@ def create_app():
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "5000"))
     app = create_app()
-    app.run(host="127.0.0.1", port=port, debug=True)
+    
+    # Scheduler setup
+    scheduler = BackgroundScheduler(daemon=True)
+    
+    # Schedule the notification job to run every Monday at 20:00
+    def scheduled_task():
+        with app.app_context():
+            send_overdue_notifications()
+
+    scheduler.add_job(scheduled_task, 'cron', day_of_week='mon', hour=20)
+    scheduler.start()
+    
+    port = int(os.getenv("PORT", "5000"))
+    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False) # use_reloader=False to avoid running scheduler twice
