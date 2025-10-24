@@ -6,7 +6,7 @@ Proyecto de sistema bibliotecario | LPWWW | Alergicos a la pala
 * Cristóbal Lazcano 202173567-4
 * José Manuel Castro 202073550-6
 * Ian Rossi A. 202004612-3
-* Integrante 5
+* Muryel Constanzo 202173525-9
 
 ### Entrega 1: Frontend
 * Figma: https://www.figma.com/design/N6ruH9qnwYHWIbdGE6bBdp/Biblioteca-LPWWW?node-id=18-3&t=16dMF6fR6jiwyoJJ-1
