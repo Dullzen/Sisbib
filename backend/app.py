@@ -317,6 +317,54 @@ def create_app():
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)}), 500
 
+    @app.get("/api/libros")
+    def list_libros(): 
+        q: Optional[str] = request.args.get("q")
+        categoria: Optional[str] = request.args.get("categoria")
+        try:
+            limit = int(request.args.get("limit", "200"))
+        except ValueError:
+            limit = 200
+        
+        where = []
+        params: list[Any] = []
+
+        if q:
+            like = f"%{q.strip()}%"
+            where.append("(titulo ILIKE %s OR autor ILIKE %s)")
+            params.extend([like, like])
+            
+        if categoria: 
+            like_categoria = f"%{categoria.strip()}%"
+            where.append("categoria ILIKE %s")
+            params.append(like_categoria)
+
+        sql = (
+            "SELECT id_libro, titulo, autor, categoria, ejemplares_disponibles "
+            "FROM public.libros"
+        )
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+            
+        sql += " ORDER BY titulo ASC LIMIT %s" 
+        params.append(limit)
+        
+        try:
+            with get_connection() as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(sql, tuple(params)) 
+                    rows = cur.fetchall()
+                    
+                    return jsonify({"ok": True, "count": len(rows), "items": rows})
+                    
+        except psycopg.OperationalError as e:
+            print(f"ERROR OPERACIONAL de DB: {e}")
+            return jsonify({"ok": False, "error": "Fallo al conectar con la base de datos PostgreSQL. Verifica que el servicio esté activo."}), 500
+        except Exception as e:
+            print(f"Error al listar libros: {e}") 
+            return jsonify({"ok": False, "error": f"Error interno en la API: {str(e)}"}), 500
+        
+
     return app
 
 
