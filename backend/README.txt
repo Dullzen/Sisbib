@@ -1,32 +1,32 @@
 Backend (Flask) - Sisbib
 
-This is a minimal Flask API used by the frontend to validate user login against a PostgreSQL database.
+Esta es una API mínima en Flask utilizada por el frontend para validar el inicio de sesión de usuarios contra una base de datos PostgreSQL.
 
 Endpoints
-- GET /api/health – health check and DB connectivity test
-- POST /api/login – body: { email, password?, role? }. Checks users table for a matching row.
-  - Returns { ok: true, role, user } on success, or { ok: false, error } on failure.
+- GET /api/health – Verifica el estado del sistema y la conectividad con la base de datos.
+- POST /api/login – body: { email, password?, role? }. Busca una fila coincidente en la tabla de usuarios.
+  - Devuelve { ok: true, role, user } en caso de éxito, o { ok: false, error } en caso de fallo.
 
-The login endpoint introspects the users table to find column names:
-- Email/username: tries email, correo, username, user, usuario
-- Password (optional): tries password, passwd, clave, hash
-- Role (optional): tries role, rol, tipo, tipo_usuario
+El endpoint de login inspecciona la tabla de usuarios para encontrar los nombres de las columnas:
+- Email/usuario: intenta con email, correo, username, user, usuario
+- Contraseña (opcional): intenta con password, passwd, clave, hash
+- Rol (opcional): intenta con role, rol, tipo, tipo_usuario
 
-If no password column exists, the check is done only by email. If no role column exists, it uses the requested role if provided, otherwise defaults to cliente.
+Si no existe una columna de contraseña, la verificación se realiza solo por email. Si no existe una columna de rol, se usa el rol solicitado si se proporciona, de lo contrario, se asigna por defecto "cliente".
 
-Configuration
-Set the following environment variables (create a .env file next to app.py if convenient) or use .env.example:
+Configuración
+Define las siguientes variables de entorno (crea un archivo .env junto a app.py si lo prefieres) o usa .env.example:
 
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=sisbib
 DB_USER=postgres
-DB_PASSWORD=your_password
+DB_PASSWORD=tu_contraseña
 PORT=5000
 
-Run locally
-1. Create a virtual environment (optional but recommended)
-2. Install dependencies: pip install -r requirements.txt
-3. Start the server: python app.py
+Ejecución local
+1. Crea un entorno virtual (opcional pero recomendado)
+2. Instala las dependencias: pip install -r requirements.txt
+3. Inicia el servidor: python app.py
 
-The frontend dev server is configured to proxy /api to http://127.0.0.1:5000.
+El servidor de desarrollo del frontend está configurado para redirigir /api a http://127.0.0.1:5000.
