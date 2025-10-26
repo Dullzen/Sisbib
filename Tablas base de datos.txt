@@ -1,0 +1,108 @@
+---------------------- Usuario -----------------------------
+
+CREATE TABLE IF NOT EXISTS public.users (
+  user_id      SERIAL PRIMARY KEY,
+  nombre       TEXT NOT NULL,
+  apellido1    TEXT,
+  apellido2    TEXT,
+  rut_numero   BIGINT,
+  rut_dv       TEXT,
+  email        TEXT UNIQUE NOT NULL,
+  password     TEXT NOT NULL,           -- Nota: en producción debe ir hasheado
+  role         TEXT NOT NULL DEFAULT 'cliente',
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT users_role_check CHECK (role IN ('admin','bibliotecario','administrativo','cliente'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email   ON public.users (lower(email));
+CREATE INDEX IF NOT EXISTS idx_users_nombre  ON public.users (nombre, apellido1, apellido2);
+
+--------------------------- Libros -------------------------
+
+CREATE TABLE IF NOT EXISTS public.libros (
+  id_libro     SERIAL PRIMARY KEY,
+  titulo       TEXT NOT NULL,
+  autor        TEXT NOT NULL,
+  categoria    TEXT,
+  editorial    TEXT,
+  edicion      TEXT,
+  anio         INT,
+  ubicacion    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_libros_titulo_autor ON public.libros (titulo, autor);
+CREATE INDEX IF NOT EXISTS idx_libros_categoria    ON public.libros (categoria);
+
+--------------------------- Ejemplares -------------------------
+
+CREATE TABLE IF NOT EXISTS public.ejemplares (
+  id_ejemplar  SERIAL PRIMARY KEY,
+  id_libro     INT NOT NULL REFERENCES public.libros(id_libro) ON DELETE CASCADE,
+  estado       TEXT NOT NULL DEFAULT 'disponible',      -- disponible|prestado|en_reposicion|en_reparacion|reservado
+  ubicacion    TEXT,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT ejemplares_estado_check CHECK (estado IN ('disponible','prestado','en_reposicion','en_reparacion','reservado'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ejemplares_libro  ON public.ejemplares (id_libro);
+CREATE INDEX IF NOT EXISTS idx_ejemplares_estado ON public.ejemplares (estado);
+
+--------------------------- Solicitudes -------------------------
+
+CREATE TABLE IF NOT EXISTS public.solicitudes (
+  solicitud_id  SERIAL PRIMARY KEY,
+  user_fk       INT NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  estado        TEXT NOT NULL DEFAULT 'pending',   -- pending|ready|served|canceled
+  asignado_fk   INT REFERENCES public.users(user_id) ON DELETE SET NULL,  -- bibliotecario asignado
+  observaciones TEXT,
+  created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT solicitudes_estado_check CHECK (estado IN ('pending','ready','served','canceled'))
+);
+
+CREATE TABLE IF NOT EXISTS public.solicitudes_detalle (
+  id            SERIAL PRIMARY KEY,
+  solicitud_fk  INT NOT NULL REFERENCES public.solicitudes(solicitud_id) ON DELETE CASCADE,
+  id_libro      INT REFERENCES public.libros(id_libro) ON DELETE SET NULL,
+  id_ejemplar   INT REFERENCES public.ejemplares(id_ejemplar) ON DELETE SET NULL,
+  cantidad      INT NOT NULL DEFAULT 1,
+  CONSTRAINT soldet_item_not_null CHECK (id_libro IS NOT NULL OR id_ejemplar IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_estado   ON public.solicitudes (estado);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_usuario  ON public.solicitudes (user_fk);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_created  ON public.solicitudes (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_soldet_solicitud     ON public.solicitudes_detalle (solicitud_fk);
+
+--------------------------- Préstamos -------------------------
+
+CREATE TABLE IF NOT EXISTS public.prestamos (
+  prestamo_id        SERIAL PRIMARY KEY,
+  user_fk            INT NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  ejemplar_fk        INT NOT NULL REFERENCES public.ejemplares(id_ejemplar) ON DELETE RESTRICT,
+  libro_fk           INT NOT NULL REFERENCES public.libros(id_libro) ON DELETE RESTRICT,
+  tipo_prestamo      TEXT NOT NULL DEFAULT 'Sala',      -- 'Sala' | 'Domicilio'
+  fecha_reserva      TIMESTAMP NOT NULL DEFAULT NOW(),
+  fecha_vencimiento  TIMESTAMP NULL,
+  fecha_devolucion   TIMESTAMP NULL,
+  vencido            BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_prestamos_user      ON public.prestamos (user_fk);
+CREATE INDEX IF NOT EXISTS idx_prestamos_ejemplar  ON public.prestamos (ejemplar_fk);
+CREATE INDEX IF NOT EXISTS idx_prestamos_tipo      ON public.prestamos (tipo_prestamo);
+CREATE INDEX IF NOT EXISTS idx_prestamos_vencido   ON public.prestamos (vencido);
+
+--------------------------- Sanciones -------------------------
+
+CREATE TABLE IF NOT EXISTS public.sanciones (
+  sancion_id  SERIAL PRIMARY KEY,
+  user_fk     INT NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  motivo      TEXT,
+  desde       TIMESTAMP NOT NULL DEFAULT NOW(),
+  hasta       TIMESTAMP NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sanciones_user  ON public.sanciones (user_fk);
+CREATE INDEX IF NOT EXISTS idx_sanciones_hasta ON public.sanciones (hasta);
+
