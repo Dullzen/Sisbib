@@ -1,193 +1,427 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react'
+import { useLocation } from "react-router-dom";
 
-const API = "http://127.0.0.1:5000";
+type Tab = 'libros' | 'solicitudes' | 'prestamos' | 'sanciones'
+
+type Libro = {
+  id_libro: number
+  titulo: string
+  autor: string
+  categoria?: string
+  ejemplares_disponibles?: number
+}
+
+type Solicitud = {
+  solicitud_id: number
+  nombre: string
+  estado: 'pending' | 'ready' | 'served'
+}
+
+type Prestamo = {
+  prestamo_id: number
+  nombre: string
+  titulo: string
+  tipo_prestamo: 'Sala' | 'Domicilio'
+  fecha_vencimiento: string
+}
+
+type Sancion = {
+  sancion_id: number
+  nombre: string
+  motivo: string
+  hasta: string
+}
+
+type ApiResult<T> = {
+  ok: boolean
+  error?: string
+  items?: T[]
+}
+
+async function api<T>(path: string, options: RequestInit = {}): Promise<ApiResult<T>> {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  })
+  return res.json()
+}
 
 export default function BibliotecarioDashboard() {
-  const [tab, setTab] = useState<"libros" | "solicitudes" | "prestamos" | "sanciones">("libros");
+  const location = useLocation();
+
+  const [tab, setTab] = useState<Tab>("libros");
   const [data, setData] = useState<any[]>([]);
-  const [msg, setMsg] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  //  helper
-  async function api(path: string, options: RequestInit = {}) {
-    const r = await fetch(`${API}${path}`, {
-      headers: { "Content-Type": "application/json" },
-      ...options,
-    });
-    const j = await r.json();
-    return j;
-  }
-
-  // -------------------------------
-  // LIBROS
-  // -------------------------------
-  async function cargarLibros() {
-    const res = await api("/api/libros");
-    if (res.ok) setData(res.items);
-  }
-
-  async function agregarLibro() {
-    const titulo = prompt("Título del libro:");
-    const autor = prompt("Autor:");
-    if (!titulo || !autor) return;
-    const res = await api("/api/libros", {
-      method: "POST",
-      body: JSON.stringify({ titulo, autor }),
-    });
-    setMsg(res.ok ? "Libro agregado" : res.error);
-    cargarLibros();
-  }
-
-  // -------------------------------
-  // SOLICITUDES
-  // -------------------------------
-  async function cargarSolicitudes() {
-    const res = await api("/api/solicitudes?estado=pending,ready");
-    if (res.ok) setData(res.items);
-  }
-
-  async function cambiarEstadoSolicitud(id: number, estado: string) {
-    const res = await api(`/api/solicitudes/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ estado }),
-    });
-    setMsg(res.ok ? `Solicitud ${id} → ${estado}` : res.error);
-    cargarSolicitudes();
-  }
-
-  // -------------------------------
-  // PRÉSTAMOS
-  // -------------------------------
-  async function cargarPrestamos() {
-    const res = await api("/api/prestamos");
-    if (res.ok) setData(res.items);
-  }
-
-  async function crearPrestamo() {
-    const user_id = prompt("ID usuario:");
-    const id_ejemplar = prompt("ID ejemplar:");
-    const tipo = prompt("Tipo (Sala o Domicilio):", "Sala");
-    if (!user_id || !id_ejemplar) return;
-    const res = await api("/api/prestamos", {
-      method: "POST",
-      body: JSON.stringify({ user_id: Number(user_id), id_ejemplar: Number(id_ejemplar), tipo }),
-    });
-    setMsg(res.ok ? "Préstamo registrado" : res.error);
-    cargarPrestamos();
-  }
-
-  async function devolverEjemplar() {
-    const id_ejemplar = prompt("ID del ejemplar a devolver:");
-    const res = await api("/api/devoluciones", {
-      method: "POST",
-      body: JSON.stringify({ id_ejemplar: Number(id_ejemplar) }),
-    });
-    setMsg(res.ok ? "Devolución registrada" : res.error);
-  }
-
-  // -------------------------------
-  // SANCIONES
-  // -------------------------------
-  async function cargarSanciones() {
-    const res = await api("/api/sanciones");
-    if (res.ok) setData(res.items);
-  }
-
-  // -------------------------------
-  // Render dinámico
-  // -------------------------------
+  // leer ?tab=... del dashboard
   useEffect(() => {
-    setData([]);
-    if (tab === "libros") cargarLibros();
-    if (tab === "solicitudes") cargarSolicitudes();
-    if (tab === "prestamos") cargarPrestamos();
-    if (tab === "sanciones") cargarSanciones();
-  }, [tab]);
+    const params = new URLSearchParams(location.search);
+    const q = params.get("tab");
+
+    if (q === "libros" || q === "solicitudes" || q === "prestamos" || q === "sanciones") {
+      setTab(q as Tab);
+    }
+  }, [location.search]);
+
+  // ------------------ carga según pestaña ------------------
+  const loadCurrentTab = async (t: Tab = tab) => {
+  setLoading(true)
+  setError(null)
+  // ❌ NO borremos message aquí, para no perder los mensajes de acciones
+  // setMessage(null)
+  let result: ApiResult<any>
+
+  if (t === 'libros') {
+    result = await api<Libro>('/api/libros')
+  } else if (t === 'solicitudes') {
+    result = await api<Solicitud>('/api/solicitudes?estado=pending,ready')
+  } else if (t === 'prestamos') {
+    result = await api<Prestamo>('/api/prestamos?solo_activos=1')
+  } else {
+    result = await api<Sancion>('/api/sanciones')
+  }
+
+  if (!result.ok) {
+    setError(result.error || 'Error al cargar datos')
+    setData([])
+  } else {
+    setData(result.items || [])
+  }
+  setLoading(false)
+}
+
+  useEffect(() => {
+    loadCurrentTab()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  // ------------------ acciones ------------------
+  const agregarLibro = async () => {
+    const titulo = prompt('Título del libro:')
+    const autor = prompt('Autor:')
+    const categoria = prompt('Categoría (opcional):')
+    const editorial = prompt('Editorial (opcional):')
+    const edicion = prompt('Edición (opcional):')
+    const anioStr = prompt('Año (opcional):')
+    const ubicacion = prompt('Ubicación en biblioteca (opcional):')
+
+    if (!titulo || !autor) return
+
+    const anio = anioStr ? Number(anioStr) : null
+
+    const res = await api('/api/libros', {
+      method: 'POST',
+      body: JSON.stringify({
+        titulo,
+        autor,
+        categoria,
+        editorial,
+        edicion,
+        anio,
+        ubicacion,
+      })
+    })
+
+    setMessage(res.ok ? 'Libro agregado.' : res.error || 'Error al agregar libro')
+    await loadCurrentTab('libros')
+  }
+
+    const agregarEjemplar = async (id_libro: number) => {
+      const res = await api('/api/ejemplares', {
+        method: 'POST',
+        body: JSON.stringify({ id_libro })
+      })
+
+      setMessage(res.ok ? 'Ejemplar agregado.' : res.error || 'Error al agregar ejemplar')
+      await loadCurrentTab('libros')
+    }
+
+
+
+
+  const cambiarEstadoSolicitud = async (id: number, estado: string) => {
+    const res = await api(`/api/solicitudes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado })
+    })
+    setMessage(res.ok ? `Solicitud ${id} → ${estado}` : res.error || 'Error al actualizar solicitud')
+    await loadCurrentTab('solicitudes')
+  }
+
+  const crearPrestamo = async () => {
+  const user_id = prompt('ID usuario:')
+  const id_ejemplar = prompt('ID ejemplar:')
+  const tipo = prompt('Tipo (Sala o Domicilio):', 'Sala') || 'Sala'
+  if (!user_id || !id_ejemplar) return
+
+  const res = await api('/api/prestamos', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: Number(user_id),
+      id_ejemplar: Number(id_ejemplar),
+      tipo
+    })
+  })
+
+  if (!res.ok) {
+    setMessage(res.error || 'Error al registrar préstamo')
+    return      // no recargamos tabla si falló
+  }
+
+  setMessage('Préstamo registrado.')
+  await loadCurrentTab('prestamos')
+}
+
+    const devolverEjemplar = async () => {
+      const id_ejemplar = prompt('ID del ejemplar a devolver:')
+      if (!id_ejemplar) return
+
+      const res = await api('/api/devoluciones', {
+        method: 'POST',
+        body: JSON.stringify({ id_ejemplar: Number(id_ejemplar) })
+      })
+
+      setMessage(res.ok ? 'Devolución registrada.' : res.error || 'Error al registrar devolución')
+
+      if (res.ok) {
+        // 👇 recarga solo la pestaña de préstamos
+        await loadCurrentTab('prestamos')
+      }
+    }
+
+
+  // ------------------ render ------------------
+  const renderTabs = () => (
+  <div className="tabbar">
+    <button
+      type="button"
+      onClick={() => setTab('libros')}
+      className={`tab-btn ${tab === 'libros' ? 'tab-btn--active' : ''}`}
+    >
+      Libros
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setTab('solicitudes')}
+      className={`tab-btn ${tab === 'solicitudes' ? 'tab-btn--active' : ''}`}
+    >
+      Solicitudes
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setTab('prestamos')}
+      className={`tab-btn ${tab === 'prestamos' ? 'tab-btn--active' : ''}`}
+    >
+      Préstamos
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setTab('sanciones')}
+      className={`tab-btn ${tab === 'sanciones' ? 'tab-btn--active' : ''}`}
+    >
+      Sanciones
+    </button>
+  </div>
+);
+
+
 
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">📘 Panel de Bibliotecario</h1>
+    <main className="container">
+      <h1 className="center">Panel de Bibliotecario</h1>
 
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab("libros")} className="bg-blue-500 text-white px-3 py-1 rounded">Libros</button>
-        <button onClick={() => setTab("solicitudes")} className="bg-amber-500 text-white px-3 py-1 rounded">Solicitudes</button>
-        <button onClick={() => setTab("prestamos")} className="bg-green-600 text-white px-3 py-1 rounded">Préstamos</button>
-        <button onClick={() => setTab("sanciones")} className="bg-red-600 text-white px-3 py-1 rounded">Sanciones</button>
+      {/* Pestañas + botones de acción */}
+      <div className="tabbar-row">
+        {renderTabs()}
+        <div className="tab-actions">
+          {tab === 'libros' && (
+            <button className="action-btn action-btn--primary" type="button" onClick={agregarLibro}>
+              + Agregar libro
+            </button>
+          )}
+          {tab === 'prestamos' && (
+            <>
+              <button className="action-btn action-btn--primary" type="button" onClick={crearPrestamo}>
+                + Crear préstamo
+              </button>
+              <button className="action-btn action-btn--primary" type="button" onClick={devolverEjemplar}>
+                Registrar devolución
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <p className="text-sm text-gray-700 mb-2">{msg}</p>
+      {message && <p className="success">{message}</p>}
+      {error && <p className="error">{error}</p>}
 
       {/* LIBROS */}
-      {tab === "libros" && (
-        <div>
-          <button onClick={agregarLibro} className="bg-blue-600 text-white px-3 py-1 rounded mb-2">+ Agregar Libro</button>
-          <table className="w-full border">
-            <thead><tr className="bg-gray-200"><th>ID</th><th>Título</th><th>Autor</th><th>Categoría</th></tr></thead>
+      {tab === 'libros' && (
+        <div className="tablewrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Título</th>
+                <th>Autor</th>
+                <th>Categoría</th>
+                <th>Ejemplares disp.</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
             <tbody>
-              {data.map((l) => (
-                <tr key={l.id_libro}><td>{l.id_libro}</td><td>{l.titulo}</td><td>{l.autor}</td><td>{l.categoria}</td></tr>
-              ))}
+              {loading ? (
+                <tr><td colSpan={6}>Cargando…</td></tr>
+              ) : data.length ? (
+                (data as Libro[]).map(l => (
+                  <tr key={l.id_libro}>
+                    <td>{l.id_libro}</td>
+                    <td>{l.titulo}</td>
+                    <td>{l.autor}</td>
+                    <td>{l.categoria || '-'}</td>
+                    <td>{l.ejemplares_disponibles ?? 0}</td>
+                    <td>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => agregarEjemplar(l.id_libro)}
+                      >
+                        + Ejemplar
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={6}>Sin resultados</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       )}
 
+
       {/* SOLICITUDES */}
-      {tab === "solicitudes" && (
-        <table className="w-full border">
-          <thead><tr className="bg-gray-200"><th>ID</th><th>Usuario</th><th>Estado</th><th>Acciones</th></tr></thead>
-          <tbody>
-            {data.map((s) => (
-              <tr key={s.solicitud_id}>
-                <td>{s.solicitud_id}</td>
-                <td>{s.nombre}</td>
-                <td>{s.estado}</td>
-                <td>
-                  {s.estado === "pending" && (
-                    <button onClick={() => cambiarEstadoSolicitud(s.solicitud_id, "ready")} className="bg-green-500 text-white px-2 py-1 rounded">Marcar Ready</button>
-                  )}
-                  {s.estado === "ready" && (
-                    <button onClick={() => cambiarEstadoSolicitud(s.solicitud_id, "served")} className="bg-blue-600 text-white px-2 py-1 rounded">Servida</button>
-                  )}
-                </td>
+      {tab === 'solicitudes' && (
+        <div className="tablewrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usuario</th>
+                <th>Estado</th>
+                <th>Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4}>Cargando…</td></tr>
+              ) : data.length ? (
+                (data as Solicitud[]).map(s => (
+                  <tr key={s.solicitud_id}>
+                    <td>{s.solicitud_id}</td>
+                    <td>{s.nombre}</td>
+                    <td>{s.estado}</td>
+                    <td>
+                      {s.estado === 'pending' && (
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => cambiarEstadoSolicitud(s.solicitud_id, 'ready')}
+                        >
+                          Marcar ready
+                        </button>
+                      )}
+                      {s.estado === 'ready' && (
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => cambiarEstadoSolicitud(s.solicitud_id, 'served')}
+                        >
+                          Servida
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4}>Sin resultados</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* PRÉSTAMOS */}
-      {tab === "prestamos" && (
-        <div>
-          <div className="flex gap-2 mb-2">
-            <button onClick={crearPrestamo} className="bg-green-700 text-white px-3 py-1 rounded">+ Crear Préstamo</button>
-            <button onClick={devolverEjemplar} className="bg-amber-600 text-white px-3 py-1 rounded">Registrar Devolución</button>
-          </div>
-          <table className="w-full border">
-            <thead><tr className="bg-gray-200"><th>ID</th><th>Usuario</th><th>Libro</th><th>Tipo</th><th>Vence</th></tr></thead>
+      {tab === 'prestamos' && (
+        <div className="tablewrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usuario</th>
+                <th>Libro</th>
+                <th>Tipo</th>
+                <th>Vence</th>
+              </tr>
+            </thead>
             <tbody>
-              {data.map((p) => (
-                <tr key={p.prestamo_id}>
-                  <td>{p.prestamo_id}</td><td>{p.nombre}</td><td>{p.titulo}</td><td>{p.tipo_prestamo}</td><td>{p.fecha_vencimiento}</td>
-                </tr>
-              ))}
+              {loading ? (
+                <tr><td colSpan={5}>Cargando…</td></tr>
+              ) : data.length ? (
+                (data as Prestamo[]).map(p => (
+                  <tr key={p.prestamo_id}>
+                    <td>{p.prestamo_id}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.titulo}</td>
+                    <td>{p.tipo_prestamo}</td>
+                    <td>{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={5}>Sin resultados</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       )}
 
       {/* SANCIONES */}
-      {tab === "sanciones" && (
-        <table className="w-full border">
-          <thead><tr className="bg-gray-200"><th>ID</th><th>Usuario</th><th>Motivo</th><th>Hasta</th></tr></thead>
-          <tbody>
-            {data.map((s) => (
-              <tr key={s.sancion_id}>
-                <td>{s.sancion_id}</td><td>{s.nombre}</td><td>{s.motivo}</td><td>{s.hasta}</td>
+      {tab === 'sanciones' && (
+        <div className="tablewrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usuario</th>
+                <th>Motivo</th>
+                <th>Hasta</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4}>Cargando…</td></tr>
+              ) : data.length ? (
+                (data as Sancion[]).map(s => (
+                  <tr key={s.sancion_id}>
+                    <td>{s.sancion_id}</td>
+                    <td>{s.nombre}</td>
+                    <td>{s.motivo}</td>
+                    <td>{new Date(s.hasta).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4}>Sin resultados</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
-  );
+    </main>
+
+  )
 }

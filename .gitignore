@@ -1,0 +1,22 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Configuración local / secretos
+.env
+.vscode/
+.idea/
+*.log
+
+# Sistema
+.DS_Store

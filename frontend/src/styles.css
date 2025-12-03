@@ -17,6 +17,86 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,s
 .navbar a.active, .navbar a:hover{background:rgba(255,255,255,.15)}
 .navbar__roles{display:flex;align-items:center;gap:8px}
 .navbar .link{background:none;border:none;color:#d4ddf9;cursor:not-allowed}
+.tabbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tabbar .btn {
+  border-radius: 999px;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.9rem;
+}
+.tabbar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  border-radius: 999px;
+  padding: 0.45rem 1.3rem;
+  font-size: 0.9rem;
+  border: 1px solid #ddd;
+  background: #ffffff;
+  color: #333333;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tab-btn:hover {
+  background: #f3f4ff;
+}
+
+.tab-btn--active {
+  background: #000000; /* si prefieres azul, cambia por #2563eb */
+  color: #ffffff;
+  border-color: #000000;
+}
+
+.tabbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.tab-actions {
+  display: flex;
+  gap: 0.5rem;
+  min-height: 2.5rem; /* mantiene el espacio aunque no haya botones */
+}
+
+.action-btn {
+  border-radius: 999px;           /* igual que las pestañas */
+  padding: 0.45rem 1.3rem;        /* igual que las pestañas */
+  font-size: 0.9rem;              /* igual que las pestañas */
+  border: 1px solid #2563eb;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+
+.action-btn:hover {
+  background: #eef2ff;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
+}
+
+.action-btn--primary {
+  background: #2563eb;       /* azul acorde con la barra superior */
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.action-btn--primary:hover {
+  background: #1d4ed8;
+}
 
 .container{max-width:1000px;margin:24px auto;padding:0 16px}
 .center{text-align:center}

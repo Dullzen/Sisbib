@@ -6,7 +6,7 @@ import Usuarios from './pages/admin/adminTools/Usuarios'
 import RegistroFicha from './pages/admin/adminTools/RegistroFicha'
 import Prestamos from './pages/admin/adminTools/Prestamos'
 import Navbar from './components/Navbar'
-import BibliotecarioHome from './pages/bibliotecario/Home'
+import BibliotecarioHome from './pages/bibliotecario/BibliotecarioHome'
 import BibliotecarioDashboard from "./pages/bibliotecario/BibliotecarioDashboard";
 import ClienteHome from './pages/cliente/Home'
 import Protected from './Protected'
@@ -19,7 +19,8 @@ return (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<SiteLogin />} />
             <Route path="/admin/dashboard" element={<Protected role="admin"><AdminDashboard /></Protected>} />
-            <Route path="/bibliotecario/home" element={<Protected role="bibliotecario"><BibliotecarioDashboard /></Protected>} />
+            <Route path="/bibliotecario/home" element={<Protected role="bibliotecario"><BibliotecarioHome /></Protected>} />
+            <Route path="/bibliotecario/dashboard" element={<Protected role="bibliotecario"><BibliotecarioDashboard /></Protected>} />
             {/*<Route path="/bibliotecario/home" element={<Protected role="bibliotecario"><BibliotecarioHome /></Protected>} />*/}
             <Route path="/cliente/home" element={<Protected role="cliente"><ClienteHome /></Protected>} />
 

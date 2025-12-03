@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -10,7 +10,6 @@ from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from flask_mailman import Mail, EmailMessage
 from apscheduler.schedulers.background import BackgroundScheduler
-
 
 @dataclass
 class DBConfig:
@@ -230,53 +229,69 @@ def create_app():
 
     @app.get("/api/prestamos")
     def list_prestamos():
-        """Return prestamos joined with user and book data.
+            """Retorna préstamos unidos a usuarios y libros.
 
-        Query params:
-        - tipo: 'Sala' | 'Domicilio' (optional; when omitted returns all)
-        - q: search text applied to titulo, autor, user name/email, and IDs
-        - limit: max rows (default 200)
-        """
-        tipo: Optional[str] = request.args.get("tipo")
-        q: Optional[str] = request.args.get("q")
-        try:
-            limit = int(request.args.get("limit", "200"))
-        except ValueError:
-            limit = 200
+            Query params:
+            - tipo: 'Sala' | 'Domicilio' (opcional)
+            - q: texto de búsqueda (título, autor, usuario, email, id)
+            - solo_activos: '1' => solo préstamos sin fecha_devolucion
+            - limit: máximo de filas (default 200)
+            """
+            tipo: Optional[str] = request.args.get("tipo")
+            q: Optional[str] = request.args.get("q")
+            solo_activos: Optional[str] = request.args.get("solo_activos")
 
-        where = []
-        params: list[Any] = []
-        if tipo:
-            tipos_list = [t.strip() for t in tipo.split(',') if t.strip()]
-            if tipos_list:
-                where.append("p.tipo_prestamo = ANY(%s)")
-                params.append(tipos_list)
-        if q:
-            like = f"%{q.strip()}%"
-            where.append("(l.titulo ILIKE %s OR l.autor ILIKE %s OR u.email ILIKE %s OR u.nombre ILIKE %s OR u.apellido1 ILIKE %s OR u.apellido2 ILIKE %s OR CAST(p.prestamo_id AS TEXT) ILIKE %s)")
-            params.extend([like, like, like, like, like, like, like])
+            try:
+                limit = int(request.args.get("limit", "200"))
+            except ValueError:
+                limit = 200
 
-        sql = (
-            "SELECT p.prestamo_id, p.fecha_reserva, p.fecha_vencimiento, p.tipo_prestamo, "
-            "u.user_id, u.nombre, u.apellido1, u.apellido2, u.email, "
-            "l.id_libro, l.titulo, l.autor, l.categoria "
-            "FROM public.prestamos p "
-            "JOIN public.users u ON u.user_id = p.user_fk "
-            "JOIN public.libros l ON l.id_libro = p.libro_fk "
-        )
-        if where:
-            sql += " WHERE " + " AND ".join(where)
-        sql += " ORDER BY p.fecha_reserva DESC, p.prestamo_id DESC LIMIT %s"
-        params.append(limit)
+            where = []
+            params: list[Any] = []
 
-        try:
-            with get_connection() as conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute(sql, params)
-                    rows = cur.fetchall()
-                    return jsonify({"ok": True, "count": len(rows), "items": rows})
-        except Exception as e:
-            return jsonify({"ok": False, "error": str(e)}), 500
+            if tipo:
+                tipos_list = [t.strip() for t in tipo.split(",") if t.strip()]
+                if tipos_list:
+                    where.append("p.tipo_prestamo = ANY(%s)")
+                    params.append(tipos_list)
+
+            if q:
+                like = f"%{q.strip()}%"
+                where.append(
+                    "(l.titulo ILIKE %s OR l.autor ILIKE %s "
+                    "OR u.email ILIKE %s OR u.nombre ILIKE %s "
+                    "OR u.apellido1 ILIKE %s OR u.apellido2 ILIKE %s "
+                    "OR CAST(p.prestamo_id AS TEXT) ILIKE %s)"
+                )
+                params.extend([like, like, like, like, like, like, like])
+
+            if solo_activos:
+                where.append("p.fecha_devolucion IS NULL")
+
+            sql = (
+                "SELECT p.prestamo_id, p.fecha_reserva, p.fecha_vencimiento, "
+                "       p.tipo_prestamo, p.vencido, "
+                "       u.user_id, u.nombre, u.apellido1, u.apellido2, u.email, "
+                "       l.id_libro, l.titulo, l.autor, l.categoria "
+                "FROM public.prestamos p "
+                "JOIN public.users u ON u.user_id = p.user_fk "
+                "JOIN public.libros l ON l.id_libro = p.libro_fk "
+            )
+            if where:
+                sql += " WHERE " + " AND ".join(where)
+            sql += " ORDER BY p.fecha_reserva DESC, p.prestamo_id DESC LIMIT %s"
+            params.append(limit)
+
+            try:
+                with get_connection() as conn:
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute(sql, tuple(params))
+                        rows = cur.fetchall()
+                        return jsonify({"ok": True, "count": len(rows), "items": rows})
+            except Exception as e:
+                print(f"[ERROR] list_prestamos: {e}")
+                return jsonify({"ok": False, "error": str(e)}), 500
+
 
     @app.post("/api/users")
     def create_user():
@@ -454,25 +469,40 @@ def create_app():
     @app.post("/api/ejemplares")
     def create_ejemplar():
         data = request.get_json(silent=True) or {}
-        required = ["id_libro"]
-        if not all(k in data for k in required):
+        id_libro = data.get("id_libro")
+        if not id_libro:
             return jsonify({"ok": False, "error": "Falta id_libro"}), 400
 
         try:
             with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+                # Insertar ejemplar usando la MISMA ubicación que el libro
                 cur.execute(
                     """
                     INSERT INTO public.ejemplares (id_libro, estado, ubicacion)
-                    VALUES (%s, %s, %s)
+                    SELECT
+                        l.id_libro,
+                        'disponible' AS estado,
+                        l.ubicacion   -- misma ubicación que el libro
+                    FROM public.libros l
+                    WHERE l.id_libro = %s
                     RETURNING id_ejemplar, id_libro, estado, ubicacion, created_at
                     """,
-                    (
-                        data.get("id_libro"),
-                        data.get("estado", "disponible"),  # valores típicos: disponible, prestado, en_reparacion
-                        data.get("ubicacion"),
-                    )
+                    (id_libro,)
                 )
                 row = cur.fetchone()
+                if not row:
+                    return jsonify({"ok": False, "error": "Libro no encontrado"}), 404
+
+                # Actualizar contador de ejemplares disponibles
+                cur.execute(
+                    """
+                    UPDATE public.libros
+                    SET ejemplares_disponibles = COALESCE(ejemplares_disponibles, 0) + 1
+                    WHERE id_libro = %s
+                    """,
+                    (id_libro,)
+                )
+
                 conn.commit()
                 return jsonify({"ok": True, "ejemplar": row})
         except Exception as e:
@@ -959,33 +989,57 @@ def create_app():
             print(f"[ERROR] Liberando ejemplar {ejemplar_id}: {e}")
 
     def _insert_sancion(conn, user_id: int, fecha_vencimiento, fecha_devolucion):
-        """Crea una sanción simple: 1 día por cada día (ceil) de atraso (mínimo 1 día)."""
+        """
+        Crea una sanción simple:
+        - atraso = fecha_devolucion - fecha_vencimiento
+        - 1 día de sanción por cada día (ceil) de atraso, mínimo 1 día.
+        OJO: fecha_vencimiento y fecha_devolucion pueden venir como DATE.
+        """
         try:
-            atraso = (fecha_devolucion - fecha_vencimiento).total_seconds()
-            if atraso <= 0:
-                return  # sin atraso => sin sanción
-            days_late = ceil(atraso / 86400.0)
+            fv = fecha_vencimiento
+            fd = fecha_devolucion
+
+            # Normalizar a datetime si llegan como date
+            if isinstance(fv, date) and not isinstance(fv, datetime):
+                fv = datetime.combine(fv, datetime.min.time())
+            if isinstance(fd, date) and not isinstance(fd, datetime):
+                fd = datetime.combine(fd, datetime.min.time())
+
+            atraso_seg = (fd - fv).total_seconds()
+            if atraso_seg <= 0:
+                # Sin atraso => sin sanción
+                return
+
+            days_late = ceil(atraso_seg / 86400.0)  # 86400 = segundos de un día
             min_days = int(os.getenv("SANCTION_MIN_DAYS", "1"))
             days = max(days_late, min_days)
+
             hasta = datetime.now() + timedelta(days=days)
+
             with conn.cursor() as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO public.sanciones (user_fk, motivo, desde, hasta)
                     VALUES (%s, %s, NOW(), %s)
-                """, (user_id, f"Atraso de {days_late} día(s)", hasta))
+                    """,
+                    (user_id, f"Atraso de {days_late} día(s)", hasta),
+                )
         except Exception as e:
-            # si no existe la tabla sanciones, no bloqueamos el flujo
+            # No rompemos el flujo si algo falla, solo lo dejamos logueado
             print(f"[WARN] No se pudo registrar sanción: {e}")
 
     @app.post("/api/devoluciones")
     def registrar_devolucion():
         """
         Body (al menos uno):
-          { "prestamo_id": 10 }  ó  { "id_ejemplar": 55 }
+        { "prestamo_id": 10 }  ó  { "id_ejemplar": 55 }
+
         Efectos:
-          - Set p.fecha_devolucion = NOW()
-          - e.estado = 'en_reposicion' y agenda a 'disponible' en 30 min
-          - Si devolvió con atraso => crea sanción
+        - p.fecha_devolucion = NOW()
+        - p.vencido = TRUE solo si se devuelve UN DÍA DESPUÉS de la fecha_vencimiento
+            (no se castigan minutos/horas dentro del mismo día)
+        - ejemplar.estado = 'disponible'
+        - Si hubo atraso => crea una fila en sanciones
         """
         data = request.get_json(silent=True) or {}
         prestamo_id = data.get("prestamo_id")
@@ -996,21 +1050,30 @@ def create_app():
 
         try:
             with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
-                # Encontrar préstamo activo
+                # 1) Buscar el préstamo
                 if prestamo_id:
-                    cur.execute("""
-                        SELECT p.prestamo_id, p.user_fk, p.ejemplar_fk, p.fecha_vencimiento, p.fecha_devolucion
+                    cur.execute(
+                        """
+                        SELECT p.prestamo_id, p.user_fk, p.ejemplar_fk,
+                            p.fecha_vencimiento, p.fecha_devolucion
                         FROM public.prestamos p
                         WHERE p.prestamo_id = %s
-                    """, (prestamo_id,))
+                        """,
+                        (prestamo_id,),
+                    )
                 else:
-                    cur.execute("""
-                        SELECT p.prestamo_id, p.user_fk, p.ejemplar_fk, p.fecha_vencimiento, p.fecha_devolucion
+                    cur.execute(
+                        """
+                        SELECT p.prestamo_id, p.user_fk, p.ejemplar_fk,
+                            p.fecha_vencimiento, p.fecha_devolucion
                         FROM public.prestamos p
                         WHERE p.ejemplar_fk = %s
                         ORDER BY p.prestamo_id DESC
                         LIMIT 1
-                    """, (id_ejemplar,))
+                        """,
+                        (id_ejemplar,),
+                    )
+
                 p = cur.fetchone()
                 if not p:
                     return jsonify({"ok": False, "error": "Préstamo no encontrado"}), 404
@@ -1018,46 +1081,57 @@ def create_app():
                     return jsonify({"ok": False, "error": "El préstamo ya está devuelto"}), 409
 
                 now = datetime.now()
+                hoy = now.date()
 
-                # Marcar devolución
-                cur.execute("""
+                fv = p["fecha_vencimiento"]  # tipo DATE en tu BD
+                if isinstance(fv, datetime):
+                    fv_date = fv.date()
+                else:
+                    fv_date = fv
+
+                # 2) Determinar si está vencido:
+                #    SOLO se considera atraso si se devuelve en un día posterior
+                vencido = False
+                if fv_date and hoy > fv_date:
+                    vencido = True
+
+                # 3) Marcar devolución (y vencido si corresponde)
+                cur.execute(
+                    """
                     UPDATE public.prestamos
-                    SET fecha_devolucion = %s
+                    SET fecha_devolucion = %s,
+                        vencido = %s
                     WHERE prestamo_id = %s
                     RETURNING prestamo_id
-                """, (now, p["prestamo_id"]))
+                    """,
+                    (now, vencido, p["prestamo_id"]),
+                )
 
-                # Pasar ejemplar a 'en_reposicion'
-                cur.execute("UPDATE public.ejemplares SET estado = 'en_reposicion' WHERE id_ejemplar = %s", (p["ejemplar_fk"],))
+                # 4) Dejar ejemplar disponible
+                cur.execute(
+                    "UPDATE public.ejemplares SET estado = 'disponible' WHERE id_ejemplar = %s",
+                    (p["ejemplar_fk"],),
+                )
 
-                # (Opcional) marcar vencido si pasó la fecha
-                try:
-                    if p["fecha_vencimiento"] and now > p["fecha_vencimiento"]:
-                        cur.execute("UPDATE public.prestamos SET vencido = TRUE WHERE prestamo_id = %s", (p["prestamo_id"],))
-                except Exception:
-                    pass
-
-                # Sanción si hay atraso
-                if p["fecha_vencimiento"]:
-                    _insert_sancion(conn, p["user_fk"], p["fecha_vencimiento"], now)
+                # 5) Crear sanción si devolvió con atraso
+                if vencido and fv_date:
+                    _insert_sancion(conn, p["user_fk"], fv_date, hoy)
 
                 conn.commit()
 
-                # Agenda liberación en 30 minutos (configurable por env DEVOLUCION_LIBERAR_MIN=30)
-                liberar_min = int(os.getenv("DEVOLUCION_LIBERAR_MIN", "30"))
-                _schedule_make_available(p["ejemplar_fk"], liberar_min)
-
-                return jsonify({
-                    "ok": True,
-                    "devolucion": {
-                        "prestamo_id": p["prestamo_id"],
-                        "ejemplar_id": p["ejemplar_fk"],
-                        "fecha_devolucion": now.isoformat(),
-                        "libera_en_min": liberar_min
+                return jsonify(
+                    {
+                        "ok": True,
+                        "devolucion": {
+                            "prestamo_id": p["prestamo_id"],
+                            "vencido": vencido,
+                        },
                     }
-                })
+                )
         except Exception as e:
+            print(f"[ERROR] registrar_devolucion: {e}")
             return jsonify({"ok": False, "error": str(e)}), 500
+
 
     # ===========================================
     # SANCIONES (consulta)
